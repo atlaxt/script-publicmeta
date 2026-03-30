@@ -4,7 +4,7 @@
 // prettier-ignore
 
 /**
- * @file @atlaxt/script-publicmeta
+ * @file @atlaxt/to-public
  * @description
  *   Reads `package.json` and writes a sanitised, public-safe JSON file.
  *   No CLI flags — configure once in the CONFIG block below.
