@@ -1,6 +1,6 @@
 {
   "name": "@atlaxt/to-public",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Reads package.json and writes a sanitised, public-safe meta.json to your public folder",
   "keywords": [
     "package.json",

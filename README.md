@@ -4,18 +4,28 @@ Reads your `package.json` and writes a sanitised, public-safe `public/meta.json`
 
 ## Setup
 
+### npm
+
 ```bash
-npx @atlaxt/to-public
+npm install -D @atlaxt/to-public
+npx to-public
+```
+
+### pnpm
+
+```bash
+pnpm add -D @atlaxt/to-public
+pnpm exec to-public
 ```
 
 That's it. This command:
 
 1. Generates `public/meta.json` from your `package.json`
-2. Adds `"prebuild": "npx @atlaxt/to-public"` to your `package.json` so it runs automatically before every build
+2. Adds `"prebuild": "to-public"` to your `package.json` so it regenerates automatically before every build
 
 ## Configuration
 
-Open the generated `to-public.cjs` and edit the `CONFIG` block at the top:
+Open `to-public.cjs` in your project and edit the `CONFIG` block at the top:
 
 ```js
 const CONFIG = {
@@ -28,3 +38,18 @@ const CONFIG = {
   include: ['name', 'version', 'description', 'homepage'],
 }
 ```
+
+## Output example
+
+```json
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "description": "My awesome app",
+  "homepage": "https://example.com"
+}
+```
+
+## License
+
+MIT — [Atlas Yigit Aydin](https://atlaxt.me)
