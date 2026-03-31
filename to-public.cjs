@@ -201,6 +201,18 @@ function writePayload(outputPath, payload) {
 ;(function main() {
   const root = process.cwd()
   const pkgPath = path.resolve(root, 'package.json')
+
+  const configFilePath = path.resolve(root, 'to-public.config.json')
+  if (fs.existsSync(configFilePath)) {
+    try {
+      const external = JSON.parse(fs.readFileSync(configFilePath, 'utf8'))
+      Object.assign(CONFIG, external)
+    }
+    catch (err) {
+      log('warn', `Could not parse to-public.config.json: ${err.message}`)
+    }
+  }
+
   const outputPath = path.resolve(root, CONFIG.outputPath)
 
   const pkg = readPackageJson(pkgPath)
