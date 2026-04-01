@@ -40,20 +40,12 @@ const CONFIG = {
   outputPath: 'public/meta.json',
 
   /**
-   * Fields to ALWAYS remove from the public output.
-   * Sensitive or irrelevant fields for end-consumers.
-   * @type {string[]}
+   * Include dependency names in output.
+   * false -> output only version + buildDate
+   * true  -> add `dependencies: string[]` (names only, no versions)
+   * @type {boolean}
    */
-  exclude: null,
-  // exclude: ['scripts', 'devDependencies', 'funding', 'config'],
-
-  /**
-   * If set, ONLY these fields will be included in the output.
-   * Leave as `null` to include all fields (minus excluded ones).
-   * @type {string[] | null}
-   */
-  include: null,
-  // include: ['name', 'version', 'description', 'homepage'],
+  includeDependencies: false,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,35 +124,27 @@ function readPackageJson(pkgPath) {
 }
 
 /**
- * Applies CONFIG.include and CONFIG.exclude to the raw package data.
+ * Builds the public payload.
  *
- * Processing order:
- *  1. If `include` is set → keep only those fields.
- *  2. Remove every field listed in `exclude`.
+ * Always includes:
+ *  - version
+ *  - buildDate
+ *
+ * Optionally includes:
+ *  - dependencies (package names only)
  *
  * @param {Record<string, unknown>} pkg
  * @returns {Record<string, unknown>}
  */
 function buildPayload(pkg) {
-  let payload = Object.assign({}, pkg)
-
-  // Step 1 — inclusion whitelist
-  if (Array.isArray(CONFIG.include) && CONFIG.include.length > 0) {
-    const whitelisted = {}
-    for (const field of CONFIG.include) {
-      if (Object.prototype.hasOwnProperty.call(payload, field)) {
-        whitelisted[field] = payload[field]
-      }
-    }
-    payload = whitelisted
+  const payload = {
+    version: typeof pkg.version === 'string' ? pkg.version : null,
+    buildDate: new Date().toISOString(),
   }
 
-  // Step 2 — exclusion blacklist
-  for (const field of (CONFIG.exclude ?? [])) {
-    delete payload[field]
+  if (CONFIG.includeDependencies) {
+    payload.dependencies = Object.keys(pkg.dependencies ?? {}).sort()
   }
-
-  payload.buildDate = new Date().toISOString()
 
   return payload
 }
@@ -202,14 +186,24 @@ function writePayload(outputPath, payload) {
   const root = process.cwd()
   const pkgPath = path.resolve(root, 'package.json')
 
-  const configFilePath = path.resolve(root, 'to-public.config.json')
+  const configFilePathCjs = path.resolve(root, 'to-public.config.cjs')
+  const configFilePathJson = path.resolve(root, 'to-public.config.json')
+  const configFilePath = fs.existsSync(configFilePathCjs)
+    ? configFilePathCjs
+    : configFilePathJson
+
   if (fs.existsSync(configFilePath)) {
     try {
-      const external = JSON.parse(fs.readFileSync(configFilePath, 'utf8'))
+      const external = configFilePath.endsWith('.cjs')
+        ? (() => {
+            delete require.cache[require.resolve(configFilePath)]
+            return require(configFilePath)
+          })()
+        : JSON.parse(fs.readFileSync(configFilePath, 'utf8'))
       Object.assign(CONFIG, external)
     }
     catch (err) {
-      log('warn', `Could not parse to-public.config.json: ${err.message}`)
+      log('warn', `Could not parse ${path.basename(configFilePath)}: ${err.message}`)
     }
   }
 

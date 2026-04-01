@@ -1,6 +1,15 @@
 # @atlaxt/to-public
 
-Reads your `package.json` and writes a sanitised, public-safe `public/meta.json` — automatically, before every build.
+Reads your `package.json` and writes a minimal `public/meta.json` automatically before every build.
+
+Default output:
+
+- `version`
+- `buildDate`
+
+Optional output:
+
+- `dependencies` (string array with package names only, no version values)
 
 ## Setup
 
@@ -19,23 +28,52 @@ From then on, `meta.json` regenerates automatically before every build.
 
 ## Config panel
 
-The panel appears on every direct `npx` invocation. It lets you set:
+The panel appears on first run (when no config file exists). It lets you set:
 
 | Option | Description |
 | --- | --- |
 | `outputPath` | Where to write the output file (default: `public/meta.json`) |
-| `include` | Keep only these fields (empty = all fields) |
-| `exclude` | Remove these fields from output |
+| `includeDependencies` | `false` by default. When `true`, adds dependency names as `string[]` |
 
-Settings are saved to `to-public.config.json` in your project root. You can also edit it manually:
+Settings are saved to `to-public.config.cjs` in your project root with inline comments. You can also edit it manually:
 
-```json
-{
-  "outputPath": "public/meta.json",
-  "include": ["name", "version", "description", "homepage"],
-  "exclude": null
+```js
+/**
+ * to-public config
+ */
+module.exports = {
+  outputPath: 'public/meta.json',
+  includeDependencies: false,
 }
 ```
 
+Legacy `to-public.config.json` is still supported.
+
 > When running as a prebuild script (non-interactive), the panel is skipped and the file is generated directly using the saved config.
 
+To reopen the panel after setup, run:
+
+```bash
+npx @atlaxt/to-public --config
+```
+
+## Output examples
+
+`includeDependencies: false`
+
+```json
+{
+  "version": "1.2.3",
+  "buildDate": "2026-04-01T12:34:56.789Z"
+}
+```
+
+`includeDependencies: true`
+
+```json
+{
+  "version": "1.2.3",
+  "buildDate": "2026-04-01T12:34:56.789Z",
+  "dependencies": ["react", "zod", "zustand"]
+}
+```

@@ -7,7 +7,10 @@ const readline = require('node:readline')
 
 const PREBUILD_CMD = 'to-public'
 const pkgPath = path.resolve(process.cwd(), 'package.json')
-const configPath = path.resolve(process.cwd(), 'to-public.config.json')
+const configPathCjs = path.resolve(process.cwd(), 'to-public.config.cjs')
+const configPathJson = path.resolve(process.cwd(), 'to-public.config.json')
+const args = process.argv.slice(2)
+const wantsConfigPanel = args.includes('--config') || args.includes('-c')
 
 if (!fs.existsSync(pkgPath)) {
   process.stderr.write('[to-public] package.json not found in current directory.\n')
@@ -42,35 +45,71 @@ if (pkg.scripts.prebuild && pkg.scripts.prebuild !== PREBUILD_CMD) {
 const isTTY = Boolean(process.stdout.isTTY)
 const c = (code, str) => isTTY ? `\x1B[${code}m${str}\x1B[0m` : str
 
-// Interactive terminal → show config panel, then run
-// Non-interactive (CI, prebuild script) → run directly
-if (process.stdin.isTTY) {
+// Show config panel only on first run (no config yet) or when explicitly requested.
+if (process.stdin.isTTY && (wantsConfigPanel || !hasSavedConfig())) {
   runConfigSetup()
 } else {
   require('./to-public.cjs')
 }
 
-function loadConfig() {
-  if (fs.existsSync(configPath)) {
-    try { return JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
+function hasSavedConfig() {
+  return fs.existsSync(configPathCjs) || fs.existsSync(configPathJson)
+}
+
+function getExistingConfigPath() {
+  if (fs.existsSync(configPathCjs)) return configPathCjs
+  if (fs.existsSync(configPathJson)) return configPathJson
+  return null
+}
+
+function readConfigFile(filePath) {
+  if (filePath.endsWith('.cjs')) {
+    delete require.cache[require.resolve(filePath)]
+    return require(filePath)
   }
-  return { outputPath: 'public/meta.json', include: null, exclude: null }
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+}
+
+function loadConfig() {
+  const existingPath = getExistingConfigPath()
+  if (existingPath) {
+    try {
+      return {
+        outputPath: 'public/meta.json',
+        includeDependencies: false,
+        ...readConfigFile(existingPath),
+      }
+    } catch {}
+  }
+  return { outputPath: 'public/meta.json', includeDependencies: false }
 }
 
 function saveConfig(config) {
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
+  const content = `/**
+ * to-public config
+ *
+ * outputPath: Output file path (relative to project root)
+ * includeDependencies:
+ *   false -> output only version + buildDate
+ *   true  -> also output dependencies as a string[] (names only)
+ */
+module.exports = {
+  outputPath: ${JSON.stringify(config.outputPath)},
+  includeDependencies: ${JSON.stringify(config.includeDependencies)},
+}
+`
+
+  fs.writeFileSync(configPathCjs, content, 'utf8')
 }
 
 function displayConfig(config) {
-  const includeVal = config.include ? c('33', config.include.join(', ')) : c('2', '(all fields)')
-  const excludeVal = config.exclude ? c('33', config.exclude.join(', ')) : c('2', '(none)')
+  const includeDepsVal = config.includeDependencies ? c('32', 'true') : c('2', 'false')
 
   process.stdout.write('\n')
   process.stdout.write(c('1', '  @atlaxt/to-public — Config\n'))
   process.stdout.write('  ' + c('2', '─'.repeat(40)) + '\n')
-  process.stdout.write(`  ${c('36', '1)')} outputPath   ${c('2', '→')}  ${c('33', config.outputPath)}\n`)
-  process.stdout.write(`  ${c('36', '2)')} include      ${c('2', '→')}  ${includeVal}\n`)
-  process.stdout.write(`  ${c('36', '3)')} exclude      ${c('2', '→')}  ${excludeVal}\n`)
+  process.stdout.write(`  ${c('36', '1)')} outputPath            ${c('2', '→')}  ${c('33', config.outputPath)}\n`)
+  process.stdout.write(`  ${c('36', '2)')} includeDependencies   ${c('2', '→')}  ${includeDepsVal}\n`)
   process.stdout.write('  ' + c('2', '─'.repeat(40)) + '\n')
   process.stdout.write(`  ${c('2', 'Enter → save & run   q → quit')}\n\n`)
 }
@@ -101,13 +140,8 @@ function runConfigSetup() {
       const val = (await ask(`  outputPath [${config.outputPath}]: `)).trim()
       if (val) config.outputPath = val
     } else if (choice === '2') {
-      const current = config.include ? config.include.join(', ') : ''
-      const val = (await ask(`  include fields (comma-separated, empty = all) [${current || 'all'}]: `)).trim()
-      config.include = val ? val.split(',').map(s => s.trim()).filter(Boolean) : null
-    } else if (choice === '3') {
-      const current = config.exclude ? config.exclude.join(', ') : ''
-      const val = (await ask(`  exclude fields (comma-separated, empty = none) [${current || 'none'}]: `)).trim()
-      config.exclude = val ? val.split(',').map(s => s.trim()).filter(Boolean) : null
+      config.includeDependencies = !config.includeDependencies
+      process.stdout.write(c('32', `  includeDependencies => ${String(config.includeDependencies)}\n`))
     }
 
     await menu()
